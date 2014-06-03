@@ -111,7 +111,6 @@ class Pool(Sender):
       def showNeighbours(s):#Wyswietla liste punktow
             for i in s.__neighbours:
                   print i
-from copy import deepcopy
 class Board(Sender):
       #Klasa, ktora tworzy plansze
       def __init__(s,m,n):
@@ -452,7 +451,7 @@ class Game(Sender):
             s.__C.bind("<KeyRelease-2>",lambda e:s.setCurrentWeight(60))
             s.__C.bind("<KeyRelease-3>",lambda e:s.setCurrentWeight(90))
             s.__C.bind("<KeyRelease-4>",lambda e:s.setCurrentWeight(120))
-            s.__C.bind("<KeyRelease-4>",lambda e:s.setCurrentWeight(2000))
+            s.__C.bind("<KeyRelease-5>",lambda e:s.setCurrentWeight(2000))
             s.__C.tag_bind("board","<2>",s.__setMeta)
             s.__C.tag_bind("board","<1>",s.__setPoolWeight)
 class Main:
