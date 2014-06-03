@@ -1,4 +1,3 @@
-#Way
 from __future__ import generators
 class priorityDictionary(dict):
 	def __init__(self):
@@ -111,6 +110,7 @@ class Pool(Sender):
       def showNeighbours(s):#Wyswietla liste punktow
             for i in s.__neighbours:
                   print i
+from copy import deepcopy
 class Board(Sender):
       #Klasa, ktora tworzy plansze
       def __init__(s,m,n):
@@ -181,6 +181,8 @@ class Board(Sender):
                   end = P[end]
             path.reverse()
             return path
+      def getPools(s):#Zwraca liste pol
+            return s.__poolSL.values()
 
 class Way:
       #Klasa, ktora tworzy obiekt drogi
@@ -198,7 +200,7 @@ class Way:
       
 class PoolGUI(Listener):
       #Klasa, ktora umozliwia narysowanie pola
-      __sl={30:"gray90",60:"gray60",90:"gray30",120:"#000000",2000:"red"}
+      __sl={30:"gray90",60:"gray60",90:"gray30",120:"#000000",2000:"red",4000:"#ffffff"}
       def __init__(s,C,pool,X=50,Y=50,a=20):
             #Dane:
             Listener.__init__(s)
@@ -246,15 +248,27 @@ class BoardGUI(Listener):
             return s.__a
 class Player(Sender):
       #Klasa, ktora tworzy obiekt gracza
-      def __init__(s,pool):
+      def __init__(s,pool,color):
             #Dane:
             Sender.__init__(s)
+            s.__previousWeight=None
             s.__pool=pool
+            s.__color=color
       def setPool(s,pool):#Ustawia pole
+            #musi zapamietac wage
+            if s.__previousWeight==None:
+                  pass
+            else:
+                  s.__pool.setWeight(s.__previousWeight)
             s.__pool=pool
+            s.__previousWeight=pool.getWeight()
+            s.__pool.setWeight(4000)
+            
             s.sendSignal()
       def getPool(s):#Zwraca id pola na ktorym sie znajduje
             return s.__pool
+      def getColor(s):#Zwraca kolor wypelnienia
+            return s.__color
 class Meta(Sender):
       #Klasa, ktora tworzy obiekt mety
       def __init__(s,pool):
@@ -275,17 +289,17 @@ class PlayerGUI(Listener):
             s.__a=a
             s.__player=player
             s.__r=r
-            s.__color=color
             #Definicje:
             s.__draw()
             s.listen2(player)
       def __draw(s):#Rysuje gracza
             x,y=s.__player.getPool().getXY()
-            s.__tag=s.__C.create_oval((x+1)*s.__a-s.__r+4,(y+1)*s.__a-s.__r+4,(x+1)*s.__a+s.__r-4,(y+1)*s.__a+s.__r-4,fill=s.__color,outline="brown")
+            s.__tag=s.__C.create_oval((x+1)*s.__a-s.__r+4,(y+1)*s.__a-s.__r+4,(x+1)*s.__a+s.__r-4,(y+1)*s.__a+s.__r-4,fill=s.__player.getColor(),outline="brown")
             s.__C.move(s.__tag,50-s.__a*0.5,50-s.__a*0.5)
       def __update(s):#Odswieza rysunek gracza
             x,y=s.__player.getPool().getXY()
             s.__C.coords(s.__tag,(x+1)*s.__a-s.__r+4,(y+1)*s.__a-s.__r+4,(x+1)*s.__a+s.__r-4,(y+1)*s.__a+s.__r-4)
+            s.__C.itemconfig(s.__tag,fill=s.__player.getColor())
             s.__C.move(s.__tag,50-s.__a*0.5,50-s.__a*0.5)
       def receiveSignal(s,sender):#Odbiera sygnaly
             senderN=sender.getName()
@@ -382,7 +396,7 @@ class Window:
             return s.__master
 class CurrentWeight(Listener):
       #Kontrolka, ktora wyswietla biezaca wage
-      __sl={30:"gray90",60:"gray60",90:"gray30",120:"#000000",2000:"red"}
+      __sl={30:"gray90",60:"gray60",90:"gray30",120:"#000000",2000:"red",4000:"#ffffff"}
       def __init__(s,C,game):
             #Dane:
             Listener.__init__(s)
@@ -398,7 +412,8 @@ class CurrentWeight(Listener):
       def receiveSignal(s,sender):#Odbiera sygnaly
             if sender.getName()=="Game":
                   s.__update()
-
+                  
+from random import choice
 class Game(Sender):
       def __init__(s,C,m=20,n=20,xM=1,yM=1):
             #Dane:
@@ -408,29 +423,70 @@ class Game(Sender):
             s.__C=C
             s.__wayG=WayGUI(C,[])
             boardG=BoardGUI(s.__C,s.__board,20)
-            s.__putPlayer(0,0)
+            s.__putPlayer(0,0,"orange")
+            s.__putAgent(0,3,"violet")
             s.__putMeta(xM,yM)
             #Definicje:
             s.__bind()
-      def __putPlayer(s,x,y):#Ustawia gracza
-            s.__player=Player(s.__board.getPoolWithXY(x,y))
+      def __putPlayer(s,x,y,color):#Ustawia gracza
+            s.__player=Player(s.__board.getPoolWithXY(x,y),color)
             PlayerGUI(s.__C,s.__player)
+      def __putAgent(s,x,y,color):#Ustawia gracza
+            s.__agent=Player(s.__board.getPoolWithXY(x,y),color)
+            PlayerGUI(s.__C,s.__agent)
       def __putMeta(s,x,y):#Ustawia mete
             s.__meta=Meta(s.__board.getPoolWithXY(x,y))
             MetaGUI(s.__C,s.__meta)
       def __animateMotion(s):#Animuje przejscie gracza
             pools=s.__board.shortestPath(s.__player.getPool(),s.__meta.getPool())
+            agentGoal=choice(s.__board.getPools())
+            pools2=s.__board.shortestPath(s.__agent.getPool(),agentGoal)
             po=[pools[0]]
-            for i in pools[1:]:
-                  s.__player.setPool(i)
-                  po.append(i)
-                  if len(po)>=2:
-                        s.__wayG.setPools(po)
+            
+            n=len(pools[1:])
+            m=len(pools2[1:])
+            i=0
+            j=0
+            while pools[-1]!=s.__player.getPool():
+            #for i in range(max([n+1,m+1])):#pools[1:]:
+                  if i<=n:
+                        if j<=m:
+                              if pools[i]!=pools2[j]:
+                                    s.__player.setPool(pools[i])
+                                    po.append(pools[i])
+                                    if len(po)>=2:
+                                          s.__wayG.setPools(po)
+                                    else:
+                                          pass
+                              else:
+                                    pools=s.__board.shortestPath(pools[i-1],s.__meta.getPool())
+                                    i=0
+                        else:
+                              s.__player.setPool(pools[i])
+                              po.append(pools[i])
+                              if len(po)>=2:
+                                    s.__wayG.setPools(po)
+                              else:
+                                    pass
+                  else:
+                        pass
+                  
+                  if j<=m:
+                        if i<=n:
+                              if pools[i]!=pools2[j]:
+                                    s.__agent.setPool(pools2[i])
+                              else:
+                                    print "Agent gottcha!"
+                                    pools2=s.__board.shortestPath(pools2[j-1],agentGoal)
+                                    j=0
                   else:
                         pass
                   s.__C.after(200)
                   s.__C.update()
+                  i+=1
+                  j+=1
             s.__wayG.setPools(pools)
+            
       def getC(s):#Zwraca id Canvasu
             return s.__C
       def getCurrentWeight(s):#Zwraca biezaca wage
@@ -451,7 +507,7 @@ class Game(Sender):
             s.__C.bind("<KeyRelease-2>",lambda e:s.setCurrentWeight(60))
             s.__C.bind("<KeyRelease-3>",lambda e:s.setCurrentWeight(90))
             s.__C.bind("<KeyRelease-4>",lambda e:s.setCurrentWeight(120))
-            s.__C.bind("<KeyRelease-5>",lambda e:s.setCurrentWeight(2000))
+            s.__C.bind("<KeyRelease-4>",lambda e:s.setCurrentWeight(2000))
             s.__C.tag_bind("board","<2>",s.__setMeta)
             s.__C.tag_bind("board","<1>",s.__setPoolWeight)
 class Main:
@@ -461,7 +517,7 @@ class Main:
             win=Window("Way",600,600,0,0)
             desk=Desk(win.getMaster())
             C=desk.getC()
-            game=Game(C,m=10,n=15)
+            game=Game(C,m=20,n=20)
             CurrentWeight(C,game)
             #Definicje:
             win.loop()
