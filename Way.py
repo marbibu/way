@@ -1,3 +1,4 @@
+#Way
 from __future__ import generators
 class priorityDictionary(dict):
 	def __init__(self):
